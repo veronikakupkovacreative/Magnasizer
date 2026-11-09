@@ -37,6 +37,7 @@ export function updateBrandColor(project: Project, id: string, value: string, na
     background: document.backgroundStyleId === id ? value : document.background,
     layers: document.layers.map((layer): Layer => {
       if (layer.colorStyleId !== id || layer.type === "image") return layer;
+      if (layer.type === "text") return { ...layer, style: { ...layer.style, fill: value } };
       return { ...layer, style: { ...layer.style, fill: value } };
     }),
   }));
@@ -83,6 +84,7 @@ export function applyColorStyle(project: Project, variantId: string | null, laye
     if (!layerId) return { ...document, backgroundStyleId: styleId ?? undefined, background: color?.value ?? document.background };
     return { ...document, layers: document.layers.map((layer): Layer => {
       if (layer.id !== layerId || layer.type === "image") return layer;
+      if (layer.type === "text") return { ...layer, colorStyleId: styleId ?? undefined, style: { ...layer.style, fill: color?.value ?? layer.style.fill } };
       return { ...layer, colorStyleId: styleId ?? undefined, style: { ...layer.style, fill: color?.value ?? layer.style.fill } };
     }) };
   };
