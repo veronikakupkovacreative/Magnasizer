@@ -1,0 +1,24 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="360" height="520" viewBox="0 0 360 520">
+  <defs>
+    <linearGradient id="body" x1="0" y1="0" x2="1" y2="0"><stop stop-color="#4c6145"/><stop offset=".18" stop-color="#a0b68b"/><stop offset=".4" stop-color="#b5c7a4"/><stop offset=".7" stop-color="#91a780"/><stop offset="1" stop-color="#536b49"/></linearGradient>
+    <linearGradient id="cap" x1="0" y1="0" x2="1" y2="0"><stop stop-color="#18271e"/><stop offset=".3" stop-color="#445d45"/><stop offset=".8" stop-color="#2a4030"/><stop offset="1" stop-color="#1d2e22"/></linearGradient>
+    <linearGradient id="shine" x1="0" y1="0" x2="1" y2="1"><stop stop-color="#e0e7d5" stop-opacity=".6"/><stop offset="1" stop-color="#faffed" stop-opacity="0"/></linearGradient>
+    <radialGradient id="shadow"><stop stop-color="#283c23" stop-opacity=".38"/><stop offset="1" stop-color="#283c23" stop-opacity="0"/></radialGradient>
+  </defs>
+  <ellipse cx="184" cy="480" rx="133" ry="27" fill="url(#shadow)"/>
+  <g transform="rotate(9 180 258)">
+    <path d="M141 55h78v52c0 22 39 34 42 68l8 246c1 34-22 52-87 52s-88-18-87-52l8-246c3-34 38-46 38-68Z" fill="url(#body)" stroke="#617852" stroke-width="1.5"/>
+    <path d="M142 111c-3 25-26 43-28 70l-6 233c-1 23 8 30 17 33-10-64-8-191-2-267 2-29 16-49 19-69Z" fill="url(#shine)"/>
+    <path d="M142 109h78" stroke="#344b33" stroke-width="4" opacity=".55"/>
+    <rect x="135" y="45" width="91" height="68" rx="13" fill="url(#cap)" stroke="#263e29" stroke-width="1.5"/>
+    <ellipse cx="180.5" cy="47" rx="40.5" ry="9" fill="#52674b"/>
+    <ellipse cx="180.5" cy="46" rx="31" ry="5" fill="#687a5d"/>
+    <path d="M144 62v36m9-36v39m10-39v40m10-40v40m10-40v40m10-40v40m10-40v39m10-39v36" stroke="#102419" stroke-opacity=".3" stroke-width="2"/>
+    <path d="M113 427c17 13 44 17 68 17s55-4 74-17" stroke="#d2ddc2" stroke-opacity=".3" fill="none" stroke-width="2"/>
+    <g fill="#2d422d">
+      <path fill-rule="evenodd" d="M139 271h13v4h-9v6h8v4h-8v10h-4Z M165 270c-7 0-10 4-10 13s3 13 10 13 10-4 10-13-3-13-10-13Z M165 274c4 0 6 3 6 9s-2 9-6 9-6-3-6-9 2-9 6-9Z M180 271h8c6 0 9 3 9 7 0 4-2 6-5 7l6 10h-5l-5-9h-4v9h-4Z M184 275v7h4c3 0 5-1 5-4 0-2-2-3-5-3Z M204 271h5l7 17 7-17h5v24h-4v-17l-7 17h-2l-7-17v17h-4Z"/>
+      <circle cx="235" cy="270" r="3" fill="none" stroke="#2d422d" stroke-width="1"/>
+    </g>
+    <path d="M158 322h48m-37 6h26" stroke="#415c3b" stroke-width="1" opacity=".6"/>
+  </g>
+</svg>

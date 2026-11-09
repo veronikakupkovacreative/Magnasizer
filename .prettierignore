@@ -1,0 +1,11 @@
+node_modules
+.next
+package-lock.json
+next-env.d.ts
+test-results
+playwright-report
+AGENTS.md
+ARCHITECTURE.md
+PROJECT_SPEC.md
+DESIGN_SYSTEM.md
+ROADMAP.md

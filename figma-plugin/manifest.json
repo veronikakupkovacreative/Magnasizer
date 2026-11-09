@@ -1,0 +1,10 @@
+{
+  "name": "MAGNASIZER Bridge",
+  "id": "REPLACE_WITH_FIGMA_GENERATED_ID",
+  "api": "1.0.0",
+  "main": "code.js",
+  "ui": "ui.html",
+  "editorType": ["figma"],
+  "documentAccess": "dynamic-page",
+  "networkAccess": { "allowedDomains": ["none"] }
+}
