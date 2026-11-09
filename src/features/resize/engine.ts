@@ -43,7 +43,7 @@ export function approximateTextLines(text: string, width: number, fontSize: numb
   }, 0);
 }
 
-export function fitTypography(layer: Extract<Layer, { type: "text" }>, box: Box, preferredSize: number): Layer {
+export function fitTypography(layer: Extract<Layer, { type: "text" }>, box: Box, preferredSize: number): Extract<Layer, { type: "text" }> {
   let fontSize = clamp(preferredSize, 8, 300);
   // Avoid rewriting approved copy. Adjust the container and font size only.
   while (fontSize > 8 && approximateTextLines(layer.text, box.width, fontSize) * fontSize * 1.16 > box.height) {
@@ -56,7 +56,7 @@ export function fitTypography(layer: Extract<Layer, { type: "text" }>, box: Box,
   };
 }
 
-function fitImage(layer: Extract<Layer, { type: "image" }>, region: Box, scale = 1): Layer {
+function fitImage(layer: Extract<Layer, { type: "image" }>, region: Box, scale = 1): Extract<Layer, { type: "image" }> {
   const ratio = layer.geometry.width / layer.geometry.height;
   const maxW = Math.max(8, region.width * scale);
   const maxH = Math.max(8, region.height * scale);
@@ -76,7 +76,7 @@ function fitImage(layer: Extract<Layer, { type: "image" }>, region: Box, scale =
  * Nondestructive center/anchor crop for explicitly fill-sized photographic backgrounds.
  * Products/logos always remain contained. Original binary assets are never changed.
  */
-export function fillImageCrop(layer: Extract<Layer, { type: "image" }>, region: Box): Layer {
+export function fillImageCrop(layer: Extract<Layer, { type: "image" }>, region: Box): Extract<Layer, { type: "image" }> {
   const original = layer.crop;
   const sourceRatio = (layer.geometry.width / layer.geometry.height) * (original.height / original.width);
   const targetRatio = region.width / region.height;
@@ -273,9 +273,9 @@ export function composeDocument(master: StudioDocument, width: number, height: n
   }));
   const headline = master.layers.find((layer) => textRole(layer, "headline"));
   const body = master.layers.find((layer) => textRole(layer, "body"));
-  const label = master.layers.find((layer) => layer.type === "text" && layer.role === "decoration" && /label|eyebrow|collection/i.test(layer.name));
-  const details = master.layers.filter((layer) => layer.type === "text" && layer.role === "decoration" && layer.id !== label?.id);
-  const ctaShape = master.layers.find((layer) => layer.role === "cta" && layer.type === "shape");
+  const label = master.layers.find((layer): layer is Extract<Layer, { type: "text" }> => layer.type === "text" && layer.role === "decoration" && /label|eyebrow|collection/i.test(layer.name));
+  const details = master.layers.filter((layer): layer is Extract<Layer, { type: "text" }> => layer.type === "text" && layer.role === "decoration" && layer.id !== label?.id);
+  const ctaShape = master.layers.find((layer): layer is Extract<Layer, { type: "shape" }> => layer.role === "cta" && layer.type === "shape");
   const ctaText = master.layers.find((layer) => textRole(layer, "cta"));
 
   // Compact displays need specific rules rather than blindly scaling a 1200px master.

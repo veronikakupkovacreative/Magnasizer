@@ -279,7 +279,7 @@ export function Editor({ initial }: { initial: LoadedProject }) {
         setPrefs({ rightOpen: true });
         requestAnimationFrame(() => {
           const field =
-            document.querySelector<HTMLInputElement>(".layer-name-input");
+            window.document.querySelector<HTMLInputElement>(".layer-name-input");
           field?.focus();
           field?.select();
         });
@@ -355,7 +355,7 @@ export function Editor({ initial }: { initial: LoadedProject }) {
         } else {
           const zoom =
             Number(
-              document.querySelector<HTMLElement>('[data-testid="canvas-host"]')
+              window.document.querySelector<HTMLElement>('[data-testid="canvas-host"]')
                 ?.dataset.zoom,
             ) || 0.5;
           setPrefs({
@@ -844,7 +844,7 @@ export function Editor({ initial }: { initial: LoadedProject }) {
           focusArtboard(issue.boardKey === "master" ? null : issue.boardKey);
           editor.setSelectedIds([issue.layerId]);
         }} />}
-      {cropLayer?.type === "image" && cropAsset && (
+      {cropLayer?.type === "image" && cropAsset && cropAsset.kind !== "imported-font" && (
         <CropDialog
           key={cropLayer.id}
           layer={cropLayer}

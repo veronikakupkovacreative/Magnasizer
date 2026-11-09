@@ -21,7 +21,7 @@ export function CropDialog({
   apply,
 }: {
   layer: Extract<Layer, { type: "image" }>;
-  asset: Asset;
+  asset: Extract<Asset, { kind: "bundled-image" | "imported-image" }>;
   blobs: AssetBlobs;
   close: () => void;
   apply: (crop: Crop) => void;

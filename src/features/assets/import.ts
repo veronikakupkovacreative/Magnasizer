@@ -39,7 +39,7 @@ export async function decodeImage(
   }
 }
 export type ImportedAsset = {
-  asset: Asset;
+  asset: Extract<Asset, { kind: "imported-image" }>;
   blobs: AssetBlobs;
   removed: number;
 };
@@ -86,6 +86,7 @@ export async function importImage(file: File): Promise<ImportedAsset> {
     renderKey,
     sanitized: mimeType === "image/svg+xml",
   });
+  if (asset.kind !== "imported-image") throw new Error("unsupportedImage");
   return {
     asset,
     blobs: { [originalKey]: original, [renderKey]: render },
@@ -93,7 +94,7 @@ export async function importImage(file: File): Promise<ImportedAsset> {
   };
 }
 export function imageLayer(
-  asset: Asset,
+  asset: Extract<Asset, { kind: "bundled-image" | "imported-image" }>,
   doc: Pick<StudioDocument, "width" | "height" | "layers">,
   offset = 0,
 ): Layer {

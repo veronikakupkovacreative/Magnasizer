@@ -59,5 +59,7 @@ export function makeZip(entries: ZipEntry[]): Blob {
   end.view.setUint16(10, entries.length, true);
   end.view.setUint32(12, directorySize, true);
   end.view.setUint32(16, offset, true);
-  return new Blob([...parts, ...central, end.bytes], { type: "application/zip" });
+  // Ensure every BlobPart owns an ArrayBuffer (TS 6 DOM types reject SharedArrayBuffer-backed views).
+  const buffers = [...parts, ...central, end.bytes].map((bytes) => Uint8Array.from(bytes).buffer);
+  return new Blob(buffers, { type: "application/zip" });
 }

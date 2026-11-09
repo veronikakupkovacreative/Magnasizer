@@ -273,6 +273,8 @@ export const bundleSchema = z
       const asset = assets.find((a) => a.id === layer.assetId);
       if (!asset)
         ctx.addIssue({ code: "custom", message: "Missing asset reference" });
+      else if (asset.kind === "imported-font")
+        ctx.addIssue({ code: "custom", message: "Image layer references font asset" });
       else if (
         Math.abs(
           layer.geometry.width / layer.geometry.height -
