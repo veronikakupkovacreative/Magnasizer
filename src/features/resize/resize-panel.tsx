@@ -8,7 +8,7 @@ import { FORMAT_PRESETS, type FormatPreset } from "@/features/formats/presets";
 import { LayoutPreviews } from "./layout-previews";
 import { FlatImagePreviews } from "./flat-image-previews";
 import { flatSource } from "./flat-image";
-import { validateVariant, variantCountAfterGeneration, type CompositionMode } from "./engine";
+import { validateVariant, variantCountAfterGeneration, hasStructuredLayoutRoles, type CompositionMode } from "./engine";
 import { MAX_VARIANTS, type Asset, type AssetBlobs, type FlatImageSettings, type Project, type Variant } from "@/shared/schema/project";
 
 type Props = {
@@ -69,6 +69,7 @@ export function ResizePanel({ open, project, activeVariant, assets, blobs, close
         <Button variant="ghost" size="icon" aria-label={t("dismiss")} onClick={close}><X size={16}/></Button>
       </div>
       <p className="resize-intro">{t("resizeIntroV6")}</p>
+      {!flat && !hasStructuredLayoutRoles(project.document) && <p className="flat-import-hint" role="status">{t("unstructuredMasterHint")}</p>}
       <section className="composition-section" aria-label={t("compositionSection")}>
         <div className="composition-title"><Sparkles size={15}/><strong>{flat ? t("flatFitMode") : t("compositionSection")}</strong><span>{previewPreset.width} × {previewPreset.height}</span></div>
         {flat && project.flatImage ? (
