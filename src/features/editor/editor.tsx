@@ -99,7 +99,7 @@ export function Editor({ initial }: { initial: LoadedProject }) {
       const key = `magnasizer-figma-warnings-${project.id}`;
       const value = sessionStorage.getItem(key);
       if (value) {
-        setFigmaWarnings(value.split("\\n").filter(Boolean).slice(0, 12));
+        setFigmaWarnings(value.split("\n").filter(Boolean).slice(0, 12));
         sessionStorage.removeItem(key);
       }
     } catch { /* Optional import diagnostics. */ }
