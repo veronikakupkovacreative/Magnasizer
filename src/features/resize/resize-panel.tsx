@@ -8,8 +8,8 @@ import { FORMAT_PRESETS, type FormatPreset } from "@/features/formats/presets";
 import { LayoutPreviews } from "./layout-previews";
 import { FlatImagePreviews } from "./flat-image-previews";
 import { flatSource } from "./flat-image";
-import { validateVariant, type CompositionMode } from "./engine";
-import type { Asset, AssetBlobs, FlatImageSettings, Project, Variant } from "@/shared/schema/project";
+import { validateVariant, variantCountAfterGeneration, type CompositionMode } from "./engine";
+import { MAX_VARIANTS, type Asset, type AssetBlobs, type FlatImageSettings, type Project, type Variant } from "@/shared/schema/project";
 
 type Props = {
   open: boolean;
@@ -41,6 +41,7 @@ export function ResizePanel({ open, project, activeVariant, assets, blobs, close
   );
   const warnings = useMemo(() => activeVariant ? validateVariant(activeVariant.document, activeVariant.safeZone) : [], [activeVariant]);
   if (!open) return null;
+  const limitExceeded = variantCountAfterGeneration(project.variants, FORMAT_PRESETS.filter(preset => selected.includes(preset.id))) > MAX_VARIANTS;
   const protectedCount = project.variants.filter(
     (variant) => variant.status === "customized" && selected.some((id) =>
       FORMAT_PRESETS.some((preset) => preset.id === id && preset.id === variant.presetId && preset.version === variant.presetVersion),
@@ -110,10 +111,11 @@ export function ResizePanel({ open, project, activeVariant, assets, blobs, close
         ))}
       </div>
       <div className="resize-actions">
-        <Button variant="primary" disabled={!selected.length} onClick={() => generate(selected, mode)} data-testid="generate-variants">
+        <Button variant="primary" disabled={!selected.length || limitExceeded} onClick={() => generate(selected, mode)} data-testid="generate-variants">
           <LayoutGrid size={15}/>{project.variants.length ? t("regenerateSelected") : t("generateSelected")}
         </Button>
         <span className="protect-note"><ShieldCheck size={13}/>{t("variantPreserveNote")}</span>
+        {limitExceeded && <span role="alert" className="protect-note">{t("artboardLimit")}</span>}
         {protectedCount > 0 && <span className="protected-count" role="status">{protectedCount} {t("protectedVariantsCount")}</span>}
       </div>
       {activeVariant && (
