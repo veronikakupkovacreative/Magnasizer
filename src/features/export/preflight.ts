@@ -1,4 +1,5 @@
 import type { Asset, Project, StudioDocument, SafeZone } from "@/shared/schema/project";
+import { rotatedBounds } from "@/features/editor/model/geometry";
 export type PreflightIssue = {
   boardKey: string;
   boardName: string;
@@ -13,11 +14,11 @@ export function inspectDocument(document: StudioDocument, zone: SafeZone | null,
   const area = zone ? { left: zone.left, top: zone.top, right: document.width - zone.right, bottom: document.height - zone.bottom } : null;
   for (const layer of document.layers) {
     if (!layer.visible || layer.role === "background" || layer.role === "decoration") continue;
-    const { x, y, width, height } = layer.geometry;
+    const { width, height } = layer.geometry;
+    const { left, top, right, bottom } = rotatedBounds(layer.geometry);
     const add = (type: PreflightIssue["type"]) => issues.push({ boardKey, boardName, layerId: layer.id, layerName: layer.name, type });
-    const external = x < 0 || y < 0 || x + width > document.width || y + height > document.height;
-    if (external) add("artboard-overflow");
-    if (area && (x < area.left || y < area.top || x + width > area.right || y + height > area.bottom)) add("safe-zone");
+    if (left < -0.01 || top < -0.01 || right > document.width + 0.01 || bottom > document.height + 0.01) add("artboard-overflow");
+    if (area && (left < area.left - 0.01 || top < area.top - 0.01 || right > area.right + 0.01 || bottom > area.bottom + 0.01)) add("safe-zone");
     if (layer.type === "image" && !keys.has(layer.assetId)) add("missing-asset");
     if (layer.type === "text") {
       if (layer.style.fontSize < 10) add("small-text");

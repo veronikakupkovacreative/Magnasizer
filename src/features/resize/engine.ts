@@ -1,6 +1,6 @@
 import type { Geometry, Layer, SafeZone, StudioDocument, Variant, FlatImageSettings } from "@/shared/schema/project";
 import type { FormatPreset } from "@/features/formats/presets";
-import { clamp } from "@/features/editor/model/geometry";
+import { clamp, rotatedBounds } from "@/features/editor/model/geometry";
 import { flatSource, flatPlan } from "./flat-image";
 
 export type LayoutStrategy = Variant["strategy"];
@@ -385,10 +385,9 @@ export function scoreComposition(document: StudioDocument, zone: SafeZone): numb
   const inset = { x: zone.left, y: zone.top, right: document.width - zone.right, bottom: document.height - zone.bottom };
   for (const layer of important) {
     const g = layer.geometry;
-    const right = g.x + g.width;
-    const bottom = g.y + g.height;
-    if (g.x < 0 || g.y < 0 || right > document.width || bottom > document.height) score -= 40;
-    if (layer.role !== "product" && (g.x < inset.x - 1 || g.y < inset.y - 1 || right > inset.right + 1 || bottom > inset.bottom + 1)) score -= 16;
+    const { left, top, right, bottom } = rotatedBounds(g);
+    if (left < 0 || top < 0 || right > document.width || bottom > document.height) score -= 40;
+    if (layer.role !== "product" && (left < inset.x - 1 || top < inset.y - 1 || right > inset.right + 1 || bottom > inset.bottom + 1)) score -= 16;
     if (layer.type === "text") {
       const lines = approximateTextLines(layer.text, g.width, layer.style.fontSize);
       if (lines * layer.style.fontSize * 1.16 > g.height * 1.04) score -= 28;
@@ -435,6 +434,12 @@ export function recomposeVariant(master: StudioDocument, variant: Variant, compo
   };
 }
 
+/** Calculates capacity before generating; existing customized variants are never discarded. */
+export function variantCountAfterGeneration(existing: Variant[], presets: FormatPreset[]): number {
+  const known = new Set(existing.map(v => `${v.presetId}@${v.presetVersion}`));
+  return existing.length + presets.filter(p => !known.has(`${p.id}@${p.version}`)).length;
+}
+
 export function mergeGeneratedVariants(master: StudioDocument, presets: FormatPreset[], existing: Variant[], composition: CompositionMode = "auto", flatImage?: FlatImageSettings): Variant[] {
   return presets.map((preset) => {
     const current = existing.find((variant) => variant.presetId === preset.id && variant.presetVersion === preset.version);
@@ -450,9 +455,9 @@ export function validateVariant(document: StudioDocument, safeZone: SafeZone) {
   };
   return document.layers.flatMap((layer) => {
     if (!layer.visible || layer.role === "background" || layer.role === "decoration") return [];
-    const { x, y, width, height } = layer.geometry;
+    const { left, top, right, bottom } = rotatedBounds(layer.geometry);
     const warnings: string[] = [];
-    if (x < inner.left || y < inner.top || x + width > inner.right || y + height > inner.bottom)
+    if (left < inner.left - 0.01 || top < inner.top - 0.01 || right > inner.right + 0.01 || bottom > inner.bottom + 0.01)
       warnings.push(`${layer.name}: outside safe zone`);
     if (layer.type === "text" && layer.style.fontSize < 10) warnings.push(`${layer.name}: text below 10 px`);
     return warnings;
