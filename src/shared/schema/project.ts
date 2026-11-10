@@ -3,6 +3,7 @@ import * as legacy from "./project-v1";
 
 export const SCHEMA_VERSION = 2 as const;
 export const MAX_PROJECT_BYTES = 64 * 1024 * 1024;
+export const MAX_VARIANTS = 40;
 const id = z
   .string()
   .min(1)
@@ -202,7 +203,7 @@ export const projectSchema = z
     createdAt: z.iso.datetime(),
     updatedAt: z.iso.datetime(),
     document: documentSchema,
-    variants: z.array(variantSchema).max(40).default([]),
+    variants: z.array(variantSchema).max(MAX_VARIANTS).default([]),
     brandKit: brandKitSchema.optional(),
     flatImage: flatImageSettingsSchema.optional(),
     workspacePositions: z.record(id, z.object({ x: z.number().finite().min(0).max(16000), y: z.number().finite().min(0).max(16000) }).strict()).optional(),

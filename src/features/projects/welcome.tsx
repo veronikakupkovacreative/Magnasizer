@@ -134,12 +134,14 @@ export function Welcome() {
       let bundle,
         blobs: AssetBlobs = {},
         removed = 0;
+      let figmaDiagnostics: string[] = [];
       if (file.name.toLowerCase().endsWith(".json")) {
         if (files.length !== 1 || file.size > MAX_PROJECT_BYTES)
           throw new Error("Invalid file");
         const json = await file.text();
         if (file.name.toLowerCase().endsWith(".magnasizer.json") || json.includes('"magnasizer-figma"')) {
           const loaded = await createProjectFromFigma(parseFigmaTransfer(json));
+          figmaDiagnostics = loaded.warnings;
           bundle = loaded.bundle;
           blobs = loaded.blobs;
         } else {
@@ -173,6 +175,9 @@ export function Welcome() {
       bundle.project.id = crypto.randomUUID();
       bundle.project.createdAt = new Date().toISOString();
       await localProjects.save(bundle, blobs);
+      if (figmaDiagnostics.length) {
+        try { sessionStorage.setItem(`magnasizer-figma-warnings-${bundle.project.id}`, figmaDiagnostics.slice(0, 12).join("\n")); } catch { /* optional */ }
+      }
       if (removed) {
         try {
           sessionStorage.setItem(

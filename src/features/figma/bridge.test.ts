@@ -27,6 +27,24 @@ describe("MAGNASIZER Figma Bridge", () => {
     expect(Object.keys(blobs)).toHaveLength(0);
     expect(bundleSchema.parse(bundle).project.variants).toHaveLength(0);
   });
+  it("keeps copy in a 320 x 100 compact frame and does not merge equally named groups", async () => {
+    const payload = JSON.parse(demo);
+    payload.width = 320;
+    payload.height = 100;
+    payload.nodes = [
+      { type: "text", name: "Copy", x: 12, y: 10, width: 280, height: 65,
+        text: "Approved message", fill: "#FFFFFF", fontFamily: "Arial", fontSize: 20,
+        fontWeight: "400", align: "left", group: "Items", groupId: "42:1" },
+      { type: "shape", name: "Background shape", x: 5, y: 5, width: 30, height: 30,
+        fill: "#DB4444", radius: 0, group: "Items", groupId: "42:2" },
+    ];
+    const { bundle } = await createProjectFromFigma(parseFigmaTransfer(JSON.stringify(payload)));
+    const layers = bundle.project.document.layers;
+    expect(layers[0].type).toBe("text");
+    expect(layers[0].role).toBe("body");
+    expect(layers[0].layout.mandatory).toBe(true);
+    expect(layers[0].groupId).not.toBe(layers[1].groupId);
+  });
   it("rejects malformed and unexpected payloads", () => {
     expect(() => parseFigmaTransfer('{"source":"other"}')).toThrow("figmaTransferInvalid");
     expect(() => parseFigmaTransfer("x".repeat(24 * 1024 * 1024 + 1))).toThrow("figmaTransferTooLarge");

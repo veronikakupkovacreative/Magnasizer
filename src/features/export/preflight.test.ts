@@ -3,6 +3,14 @@ import { inspectDocument } from "./preflight";
 import { createProject } from "@/features/projects/demo";
 
 describe("preflight QA", () => {
+  it("flags a rotated layer whose unrotated box fits the artboard", () => {
+    const { project, assets } = createProject(true);
+    const doc = structuredClone(project.document);
+    const layer = doc.layers.find(item => item.type === "text")!;
+    layer.geometry = { x: doc.width - 80, y: 100, width: 80, height: 100, rotation: -45 };
+    const issues = inspectDocument(doc, null, "master", "Master", assets);
+    expect(issues.some(issue => issue.layerId === layer.id && issue.type === "artboard-overflow")).toBe(true);
+  });
   it("flags out-of-bounds visual layers without modifying the document", () => {
     const { project, assets } = createProject(true);
     const doc = structuredClone(project.document);

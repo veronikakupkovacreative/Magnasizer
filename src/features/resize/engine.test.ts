@@ -1,7 +1,7 @@
 import { describe, expect, it } from "vitest";
 import { createProject } from "@/features/projects/demo";
 import { FORMAT_PRESETS } from "@/features/formats/presets";
-import { generateVariant, mergeGeneratedVariants, validateVariant } from "./engine";
+import { generateVariant, mergeGeneratedVariants, validateVariant, variantCountAfterGeneration } from "./engine";
 
 describe("resize engine", () => {
   const master = createProject(true).project.document;
@@ -15,6 +15,14 @@ describe("resize engine", () => {
       expect(headline.type).toBe("text");
       if (headline.type === "text") expect(headline.text).toBe("BETTER.\nBY");
     }
+  });
+  it("rejects only new presets at the 40-artboard boundary", () => {
+    const template = generateVariant(master, FORMAT_PRESETS[0]);
+    const current = Array.from({ length: 40 }, (_, i) => ({ ...template,
+      id: `custom-${i}`, presetId: `custom-${i}`, status: "customized" as const }));
+    expect(variantCountAfterGeneration(current, [FORMAT_PRESETS[1]])).toBe(41);
+    const retained = [{ ...template, id: "existing" }, ...current.slice(1)];
+    expect(variantCountAfterGeneration(retained, [FORMAT_PRESETS[0]])).toBe(40);
   });
   it("preserves customized variants on regeneration", () => {
     const preset = FORMAT_PRESETS[2];

@@ -13,6 +13,7 @@ import {
 import { localProjects } from "@/lib/db/projects";
 import {
   projectSchema,
+  MAX_VARIANTS,
   type Layer,
   type BrandKit,
   type FlatImageSettings,
@@ -28,7 +29,7 @@ import {
   MAX_TOTAL_BYTES,
 } from "@/features/assets/import";
 import { FORMAT_PRESETS } from "@/features/formats/presets";
-import { mergeGeneratedVariants, generateVariant, strategyFor, recomposeVariant, type CompositionMode } from "@/features/resize/engine";
+import { mergeGeneratedVariants, generateVariant, strategyFor, recomposeVariant, variantCountAfterGeneration, type CompositionMode } from "@/features/resize/engine";
 import { addBrandColor, addBrandTextStyle, updateBrandColor, updateBrandTextStyle, deleteBrandColor, deleteBrandTextStyle, applyColorStyle, applyTextStyle } from "./brand-styles";
 
 function commitProject(history: History, next: Project, command = "batch"): History {
@@ -156,6 +157,7 @@ export function useEditor(initial: LoadedProject) {
     const presets = FORMAT_PRESETS.filter((preset) => ids.has(preset.id));
     if (!presets.length) return;
     setHistory((current) => {
+      if (variantCountAfterGeneration(current.present.variants, presets) > MAX_VARIANTS) return current;
       const generated = mergeGeneratedVariants(
         current.present.document,
         presets,
@@ -269,7 +271,7 @@ export function useEditor(initial: LoadedProject) {
   }, []);
   const duplicateVariant = useCallback((id: string) => {
     const source = latest.current.project.variants.find((v) => v.id === id);
-    if (!source || latest.current.project.variants.length >= 40) return;
+    if (!source || latest.current.project.variants.length >= MAX_VARIANTS) return;
     const freshId = crypto.randomUUID();
     setHistory((current) => commitProject(current, {
       ...current.present,
@@ -283,7 +285,7 @@ export function useEditor(initial: LoadedProject) {
     setSelectedIds([]);
   }, []);
   const addCustomVariant = useCallback((name: string, width: number, height: number) => {
-    if (!Number.isInteger(width) || !Number.isInteger(height) || width < 64 || height < 64 || width > 8192 || height > 8192 || latest.current.project.variants.length >= 40) return false;
+    if (!Number.isInteger(width) || !Number.isInteger(height) || width < 64 || height < 64 || width > 8192 || height > 8192 || latest.current.project.variants.length >= MAX_VARIANTS) return false;
     const freshId = crypto.randomUUID();
     const variant = generateVariant(latest.current.project.document, {
       id: `custom-${freshId}`, name: name.trim().slice(0, 100) || `${width} × ${height}`,

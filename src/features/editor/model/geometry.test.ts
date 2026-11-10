@@ -1,6 +1,6 @@
 import { describe, expect, it } from "vitest";
 import { createProject } from "@/features/projects/demo";
-import { fitZoom, resizeGeometry } from "./geometry";
+import { fitZoom, resizeGeometry, rotatedBounds } from "./geometry";
 describe("renderer-independent geometry", () => {
   const doc = createProject(true).project.document;
   const image = doc.layers.find((l) => l.type === "image")!;
@@ -32,5 +32,14 @@ describe("renderer-independent geometry", () => {
       height: 200,
     });
     expect(fitZoom(doc, { width: 0, height: 0 })).toBe(0.1);
+  });
+});
+
+
+describe("rotated bounds", () => {
+  it("uses the corners of a rotated object", () => {
+    const b = rotatedBounds({ x: 1120, y: 100, width: 80, height: 100, rotation: -45 });
+    expect(b.right).toBeGreaterThan(1200);
+    expect(b.top).toBeLessThan(100);
   });
 });

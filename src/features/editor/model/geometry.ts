@@ -23,6 +23,15 @@ export function resizeGeometry(
   }
   return { ...old, width: w, height: h };
 }
+/** A Konva object's actual bounds after rotation around its top-left origin. */
+export function rotatedBounds(g: Geometry) {
+  const angle = g.rotation * Math.PI / 180;
+  const c = Math.cos(angle), s = Math.sin(angle);
+  const xs = [g.x, g.x + g.width * c, g.x - g.height * s, g.x + g.width * c - g.height * s];
+  const ys = [g.y, g.y + g.width * s, g.y + g.height * c, g.y + g.width * s + g.height * c];
+  return { left: Math.min(...xs), top: Math.min(...ys), right: Math.max(...xs), bottom: Math.max(...ys) };
+}
+
 export function fitZoom(
   document: { width: number; height: number },
   viewport: { width: number; height: number },

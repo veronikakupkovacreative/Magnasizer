@@ -93,6 +93,17 @@ export function Editor({ initial }: { initial: LoadedProject }) {
     }
   });
   const [importError, setImportError] = useState<MessageKey | null>(null);
+  const [figmaWarnings, setFigmaWarnings] = useState<string[]>([]);
+  useEffect(() => {
+    try {
+      const key = `magnasizer-figma-warnings-${project.id}`;
+      const value = sessionStorage.getItem(key);
+      if (value) {
+        setFigmaWarnings(value.split("\n").filter(Boolean).slice(0, 12));
+        sessionStorage.removeItem(key);
+      }
+    } catch { /* Optional import diagnostics. */ }
+  }, [project.id]);
   const imageInput = useRef<HTMLInputElement>(null);
   const clipboard = useRef<Layer[]>([]);
   const cropLayer = document.layers.find(
@@ -628,6 +639,15 @@ export function Editor({ initial }: { initial: LoadedProject }) {
           >
             {t(importError)}
           </ErrorNotice>
+        )}
+        {figmaWarnings.length > 0 && (
+          <div className="import-notice" role="alert">
+            <details open>
+              <summary>{t("figmaImportWarnings")} ({figmaWarnings.length})</summary>
+              <ul>{figmaWarnings.map((warning, index) => <li key={index}>{warning}</li>)}</ul>
+            </details>
+            <Button variant="ghost" size="icon" aria-label={t("dismiss")} onClick={() => setFigmaWarnings([])}><X size={16}/></Button>
+          </div>
         )}
         {notice && (
           <div className="import-notice" role="status">

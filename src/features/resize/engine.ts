@@ -1,6 +1,6 @@
 import type { Geometry, Layer, SafeZone, StudioDocument, Variant, FlatImageSettings } from "@/shared/schema/project";
 import type { FormatPreset } from "@/features/formats/presets";
-import { clamp } from "@/features/editor/model/geometry";
+import { clamp, rotatedBounds } from "@/features/editor/model/geometry";
 import { flatSource, flatPlan } from "./flat-image";
 
 export type LayoutStrategy = Variant["strategy"];
@@ -183,12 +183,104 @@ export function refineCompactLayout(document: StudioDocument, zone: SafeZone, mo
 }
 
 /**
+ * Semantic art direction only works when the source has one clear headline,
+ * product, logo and CTA. Ad-hoc editor layers and Figma frames often lack
+ * those roles; guessing turns pills into circles and makes product images tiny.
+ */
+export function hasStructuredLayoutRoles(master: StudioDocument): boolean {
+  const active = master.layers.filter((layer) => layer.visible);
+  const matching = (role: Layer["role"], type?: Layer["type"]) =>
+    active.filter((layer) => layer.role === role && (!type || layer.type === type)).length;
+  return matching("headline", "text") === 1 &&
+    matching("product", "image") === 1 &&
+    matching("logo") >= 1 &&
+    matching("cta", "text") === 1;
+}
+
+/**
+ * Conservative, fully editable fallback for unstructured masters.
+ *
+ * Uniformly scale object dimensions, including typography. Distribute the
+ * unused width or height according to each element's original center so that
+ * top copy and bottom product media remain apart. Never reinterpret artwork:
+ * a wide pill stays wide, every text layer survives, original images are not
+ * cropped or stretched, and an existing master is never mutated.
+ *
+ * Very small formats can still need manual typography adjustment. Preflight
+ * reports overflows rather than silently hiding user copy.
+ */
+export function preserveMasterComposition(master: StudioDocument, width: number, height: number, zone: SafeZone): StudioDocument {
+  const left = Math.min(zone.left, width * 0.35);
+  const right = Math.min(zone.right, width * 0.35);
+  const top = Math.min(zone.top, height * 0.35);
+  const bottom = Math.min(zone.bottom, height * 0.35);
+  const availableW = Math.max(8, width - left - right);
+  const availableH = Math.max(8, height - top - bottom);
+  const scale = Math.min(availableW / master.width, availableH / master.height);
+  const gapX = Math.max(0, availableW - master.width * scale);
+  const gapY = Math.max(0, availableH - master.height * scale);
+  const round = (value: number) => Math.round(value * 100) / 100;
+
+  const membersOf = (item: Layer) =>
+    item.groupId ? master.layers.filter((member) => member.groupId === item.groupId) : [item];
+  const originalCenter = (item: Layer) => {
+    const members = membersOf(item);
+    const x0 = Math.min(...members.map((member) => member.geometry.x));
+    const y0 = Math.min(...members.map((member) => member.geometry.y));
+    const x1 = Math.max(...members.map((member) => member.geometry.x + member.geometry.width));
+    const y1 = Math.max(...members.map((member) => member.geometry.y + member.geometry.height));
+    return { x: clamp((x0 + x1) / (2 * master.width), 0, 1),
+      y: clamp((y0 + y1) / (2 * master.height), 0, 1) };
+  };
+
+  return {
+    id: crypto.randomUUID(), width, height,
+    background: master.background, backgroundStyleId: master.backgroundStyleId,
+    layers: master.layers.map((layer) => {
+      const source = layer.geometry;
+      // Full-bleed solid backgrounds are special: extend them rather than
+      // leaving a colored square or empty gutters inside a new aspect ratio.
+      const fullBleed = layer.type === "shape" &&
+        Math.abs(source.x) < 1 && Math.abs(source.y) < 1 &&
+        Math.abs(source.width - master.width) < 1 &&
+        Math.abs(source.height - master.height) < 1;
+      if (fullBleed) {
+        return { ...layer, geometry: { ...source, x: 0, y: 0, width, height },
+          style: { ...layer.style, radius: 0 } };
+      }
+      const center = originalCenter(layer);
+      const minimum = Math.max(layer.constraints.minWidth / source.width,
+        layer.constraints.minHeight / source.height);
+      const maximum = Math.min(8192 / source.width, 8192 / source.height);
+      const layerScale = Math.min(maximum, Math.max(minimum, scale));
+      const geometry = {
+        ...source,
+        x: round(left + source.x * scale + gapX * center.x),
+        y: round(top + source.y * scale + gapY * center.y),
+        width: round(source.width * layerScale),
+        height: round(source.height * layerScale),
+      };
+      if (layer.type === "text") {
+        return { ...layer, geometry, style: { ...layer.style,
+          fontSize: round(clamp(layer.style.fontSize * layerScale, 8, 300)) } };
+      }
+      if (layer.type === "shape") {
+        return { ...layer, geometry, style: { ...layer.style,
+          radius: round(Math.min(1000, layer.style.radius * layerScale)) } };
+      }
+      return { ...layer, geometry };
+    }),
+  };
+}
+
+/**
  * Composition plans are source-ID preserving, safe-area aware, and non-destructive.
  * Geometry inside the master is not mutated; backgrounds and decorative layers follow
  * the media area while content roles are placed in purpose-built zones.
  */
 export function composeDocument(master: StudioDocument, width: number, height: number, zone: SafeZone, mode: CompositionMode, flatImage?: FlatImageSettings): StudioDocument {
   if (flatSource(master, flatImage)) return flatPlan(master, width, height, flatImage!).document;
+  if (!hasStructuredLayoutRoles(master)) return preserveMasterComposition(master, width, height, zone);
   if (mode === "auto") {
     const modes = ["balanced", "product", "text"] as const;
     const candidates = modes.map((candidate) => composeDocument(master, width, height, zone, candidate));
@@ -385,10 +477,9 @@ export function scoreComposition(document: StudioDocument, zone: SafeZone): numb
   const inset = { x: zone.left, y: zone.top, right: document.width - zone.right, bottom: document.height - zone.bottom };
   for (const layer of important) {
     const g = layer.geometry;
-    const right = g.x + g.width;
-    const bottom = g.y + g.height;
-    if (g.x < 0 || g.y < 0 || right > document.width || bottom > document.height) score -= 40;
-    if (layer.role !== "product" && (g.x < inset.x - 1 || g.y < inset.y - 1 || right > inset.right + 1 || bottom > inset.bottom + 1)) score -= 16;
+    const { left, top, right, bottom } = rotatedBounds(g);
+    if (left < 0 || top < 0 || right > document.width || bottom > document.height) score -= 40;
+    if (layer.role !== "product" && (left < inset.x - 1 || top < inset.y - 1 || right > inset.right + 1 || bottom > inset.bottom + 1)) score -= 16;
     if (layer.type === "text") {
       const lines = approximateTextLines(layer.text, g.width, layer.style.fontSize);
       if (lines * layer.style.fontSize * 1.16 > g.height * 1.04) score -= 28;
@@ -435,6 +526,12 @@ export function recomposeVariant(master: StudioDocument, variant: Variant, compo
   };
 }
 
+/** Calculates capacity before generating; existing customized variants are never discarded. */
+export function variantCountAfterGeneration(existing: Variant[], presets: FormatPreset[]): number {
+  const known = new Set(existing.map(v => `${v.presetId}@${v.presetVersion}`));
+  return existing.length + presets.filter(p => !known.has(`${p.id}@${p.version}`)).length;
+}
+
 export function mergeGeneratedVariants(master: StudioDocument, presets: FormatPreset[], existing: Variant[], composition: CompositionMode = "auto", flatImage?: FlatImageSettings): Variant[] {
   return presets.map((preset) => {
     const current = existing.find((variant) => variant.presetId === preset.id && variant.presetVersion === preset.version);
@@ -450,9 +547,9 @@ export function validateVariant(document: StudioDocument, safeZone: SafeZone) {
   };
   return document.layers.flatMap((layer) => {
     if (!layer.visible || layer.role === "background" || layer.role === "decoration") return [];
-    const { x, y, width, height } = layer.geometry;
+    const { left, top, right, bottom } = rotatedBounds(layer.geometry);
     const warnings: string[] = [];
-    if (x < inner.left || y < inner.top || x + width > inner.right || y + height > inner.bottom)
+    if (left < inner.left - 0.01 || top < inner.top - 0.01 || right > inner.right + 0.01 || bottom > inner.bottom + 0.01)
       warnings.push(`${layer.name}: outside safe zone`);
     if (layer.type === "text" && layer.style.fontSize < 10) warnings.push(`${layer.name}: text below 10 px`);
     return warnings;
