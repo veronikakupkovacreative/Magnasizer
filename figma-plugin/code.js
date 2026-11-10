@@ -1,4 +1,4 @@
-/* MAGNASIZER Bridge 0.1.1 — Figma-side exporter.
+/* MAGNASIZER Bridge 0.1.3 — Figma-side exporter.
  * Works entirely locally. Large PNGs are chunked for reliable plugin-to-UI transfer. */
 figma.showUI(__html__, { width: 410, height: 560, title: "MAGNASIZER Bridge", themeColors: true });
 
@@ -8,6 +8,8 @@ const MAX_IMAGE_BYTES = 8 * 1024 * 1024;
 const MAX_TOTAL_IMAGE_BYTES = 17 * 1024 * 1024;
 const BYTE_CHUNK = 384 * 1024; // divisible by 3 for concatenated base64 chunks
 const supportedRootTypes = ["FRAME", "COMPONENT", "INSTANCE"];
+const SUPPORTED_EDITABLE_FONTS = new Set(["inter", "inter variable", "arial", "helvetica", "georgia", "verdana", "times new roman", "courier new"]);
+const SUPPORTED_TEXT_WEIGHTS = { regular: "400", normal: "400", book: "400", semibold: "600", "semi bold": "600", demibold: "600", "demi bold": "600", bold: "700" };
 const clamp = (n, lo, hi) => Math.max(lo, Math.min(hi, n));
 const hex = (v) => Math.round(clamp(v, 0, 1) * 255).toString(16).padStart(2, "0");
 const toHex = (rgb) => `#${hex(rgb.r)}${hex(rgb.g)}${hex(rgb.b)}`.toUpperCase();
@@ -54,7 +56,10 @@ async function serialize(root, flatten, progress) {
   };
   let imageBytes = 0;
   let visited = 0;
-  async function raster(node, bounds, group) {
+  const addWarning = (message) => { if (payload.warnings.length < 100) payload.warnings.push(message.slice(0, 300)); };
+  const groupFields = (group) => group ? { group: group.name, groupId: group.id } : {};
+  async function raster(node, bounds, group, reason) {
+    if (reason) addWarning(`${safe(node.name)}: exported as a raster image (${reason}); not editable.`);
     progress(`Rendering image: ${safe(node.name)}`);
     const bytes = await node.exportAsync({ format: "PNG", constraint: { type: "SCALE", value: 1 } });
     if (bytes.length > MAX_IMAGE_BYTES) {
@@ -64,9 +69,10 @@ async function serialize(root, flatten, progress) {
       throw new Error("Too many large image layers. Try Flatten entire frame, or use fewer layers.");
     }
     imageBytes += bytes.length;
-    payload.nodes.push({ type: "image", name: safe(node.name), ...bounds, ...(group ? { group } : {}), pngBytes: bytes });
+    payload.nodes.push({ type: "image", name: safe(node.name), ...bounds, ...groupFields(group),
+      ...(node.type === "TEXT" ? { contentRole: "text" } : {}), pngBytes: bytes });
   }
-  const base = (node, bounds, group) => ({ name: safe(node.name), ...bounds, ...(group ? { group } : {}) });
+  const base = (node, bounds, group) => ({ name: safe(node.name), ...bounds, ...groupFields(group) });
   async function visit(node, group) {
     if (!node.visible) return;
     visited++;
@@ -79,20 +85,38 @@ async function serialize(root, flatten, progress) {
       if (payload.warnings.length < 50) payload.warnings.push(`Skipped tiny or unsupported layer: ${safe(node.name)}`);
       return;
     }
-    if (node.rotation && Math.abs(node.rotation) > 0.01) { await raster(node, bounds, group); return; }
-    if (node.opacity !== undefined && node.opacity < 0.999) { await raster(node, bounds, group); return; }
+    if (node.rotation && Math.abs(node.rotation) > 0.01) { await raster(node, bounds, group, "rotated source layer"); return; }
+    if (node.opacity !== undefined && node.opacity < 0.999) { await raster(node, bounds, group, "layer opacity"); return; }
     if (node.type === "TEXT") {
       const font = node.fontName;
       const size = node.fontSize;
       const color = solid(node.fills);
-      if (!color || !font || font === figma.mixed || size === figma.mixed || typeof size !== "number" || size < 8 || size > 300 || (node.effects && node.effects.length)) {
-        await raster(node, bounds, group); return;
+      const family = font && font !== figma.mixed ? String(font.family || "") : "";
+      const style = font && font !== figma.mixed ? String(font.style || "").toLowerCase().trim() : "";
+      const weight = SUPPORTED_TEXT_WEIGHTS[style];
+      const spacing = node.letterSpacing;
+      const lineHeight = node.lineHeight;
+      const unsupportedTypography = !color || !weight || !SUPPORTED_EDITABLE_FONTS.has(family.toLowerCase()) ||
+        size === figma.mixed || typeof size !== "number" || size < 8 || size > 300 ||
+        spacing === figma.mixed || (spacing && Math.abs(spacing.value || 0) > 0.001) ||
+        lineHeight === figma.mixed || (lineHeight && lineHeight.unit !== "AUTO") ||
+        (node.effects && node.effects.length > 0) ||
+        (node.strokes && node.strokes.length > 0) ||
+        (node.textDecoration && node.textDecoration !== "NONE") ||
+        (node.textCase && node.textCase !== "ORIGINAL") ||
+        (node.textAlignVertical && node.textAlignVertical !== "TOP") ||
+        (node.paragraphSpacing && Math.abs(node.paragraphSpacing) > 0.001) ||
+        (node.paragraphIndent && Math.abs(node.paragraphIndent) > 0.001);
+      if (node.characters.length > 4000 || unsupportedTypography) {
+        await raster(node, bounds, group, node.characters.length > 4000
+          ? "text exceeds the 4,000-character editable limit"
+          : "unsupported font or typography; appearance preserved");
+        return;
       }
-      const style = String(font.style || "");
-      const weight = /bold|black|heavy/i.test(style) ? "700" : /semi|medium/i.test(style) ? "600" : "400";
       const align = node.textAlignHorizontal === "CENTER" ? "center" : node.textAlignHorizontal === "RIGHT" ? "right" : "left";
-      payload.nodes.push({ type: "text", ...base(node, bounds, group), text: node.characters.slice(0, 4000),
-        fill: color, fontFamily: safe(font.family, "Inter"), fontSize: size, fontWeight: weight, align });
+      payload.nodes.push({ type: "text", ...base(node, bounds, group), text: node.characters,
+        fill: color, fontFamily: family.toLowerCase() === "inter" ? "Inter Variable" : family,
+        fontSize: size, fontWeight: weight, align });
       return;
     }
     if (node.type === "RECTANGLE" || node.type === "ELLIPSE") {
@@ -105,9 +129,9 @@ async function serialize(root, flatten, progress) {
       return;
     }
     if ("children" in node && Array.isArray(node.children)) {
-      const nextGroup = node.type === "GROUP" ? safe(node.name, "Group") : group;
+      const nextGroup = node.type === "GROUP" ? { id: String(node.id), name: safe(node.name, "Group") } : group;
       if (node.clipsContent || (node.effects && node.effects.length) || node.type === "INSTANCE") {
-        await raster(node, bounds, group); return;
+        await raster(node, bounds, group, "clipping, effects or component instance"); return;
       }
       if (node.type === "FRAME" && solid(node.fills)) {
         payload.nodes.push({ type: "shape", ...base(node, bounds, group), name: safe(node.name, "Frame background"),
@@ -119,6 +143,7 @@ async function serialize(root, flatten, progress) {
     await raster(node, bounds, group);
   }
   if (flatten) {
+    addWarning("Entire frame was flattened into one image; text is not editable.");
     await raster(root, { x: 0, y: 0, width: Math.round(root.width), height: Math.round(root.height), rotation: 0 });
   } else {
     for (const child of root.children) await visit(child, undefined);

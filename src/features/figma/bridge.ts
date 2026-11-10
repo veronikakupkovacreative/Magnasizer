@@ -15,6 +15,7 @@ const geometry = {
   height: z.number().finite().min(8).max(8192),
   rotation: z.number().finite().min(-360).max(360).default(0),
   group: z.string().max(160).optional(),
+  groupId: z.string().min(1).max(160).optional(),
 };
 const figmaNodeSchema = z.discriminatedUnion("type", [
   z.object({ type: z.literal("text"), ...geometry, text: z.string().max(4000),
@@ -24,7 +25,7 @@ const figmaNodeSchema = z.discriminatedUnion("type", [
   z.object({ type: z.literal("shape"), ...geometry, fill: color,
     radius: z.number().min(0).max(1000).default(0),
   }).strict(),
-  z.object({ type: z.literal("image"), ...geometry, pngBase64: z.string().min(32).max(14_000_000).regex(/^[A-Za-z0-9+/]+={0,2}$/),
+  z.object({ type: z.literal("image"), ...geometry, contentRole: z.literal("text").optional(), pngBase64: z.string().min(32).max(14_000_000).regex(/^[A-Za-z0-9+/]+={0,2}$/),
   }).strict(),
 ]);
 export const figmaTransferSchema = z.object({
@@ -75,20 +76,28 @@ export async function createProjectFromFigma(transfer: FigmaTransfer) {
   for (const source of transfer.nodes) {
     if (document.layers.length >= 180) throw new Error("figmaTransferTooLarge");
     const id = crypto.randomUUID();
-    if (source.group && !groups.has(source.group)) groups.set(source.group, crypto.randomUUID());
-    const groupId = source.group ? groups.get(source.group) : undefined;
+    // Group labels may repeat in Figma; use the stable source node ID as identity.
+    const groupKey = source.groupId ?? source.group;
+    if (groupKey && !groups.has(groupKey)) groups.set(groupKey, crypto.randomUUID());
+    const groupId = groupKey ? groups.get(groupKey) : undefined;
+    const importedText = source.type === "text" || (source.type === "image" && source.contentRole === "text");
+    const role = importedText
+      ? (/headline|heading|title|\\bh1\\b/i.test(source.name) ? "headline" as const : "body" as const)
+      : deriveRole(source.name, source.type);
     const base = {
       id, sourceId: id, name: source.name,
       ...(groupId ? { groupId, groupName: source.group?.slice(0, 100) } : {}),
       geometry: { x: source.x, y: source.y, width: source.width, height: source.height, rotation: source.rotation },
       zIndex: document.layers.length,
-      role: deriveRole(source.name, source.type),
-      priority: /headline|product|logo|cta/i.test(source.name) ? 90 : 50,
+      role,
+      priority: importedText || /headline|product|logo|cta/i.test(source.name) ? 90 : 50,
       anchor: "top-left" as const,
       constraints: { preserveAspectRatio: source.type === "image", minWidth: 8, minHeight: 8 },
       locked: false, visible: true,
       layout: { sizing: source.type === "image" ? "scale" as const : "fixed" as const,
-        mandatory: /headline|product|logo|cta/i.test(source.name), padding: 0 },
+        // Preserve all imported layers. A compact resize may need manual tuning,
+        // but it must never silently hide approved copy or frame elements.
+        mandatory: true, padding: 0 },
     };
     let layer: Layer;
     if (source.type === "text") {
@@ -111,7 +120,7 @@ export async function createProjectFromFigma(transfer: FigmaTransfer) {
       layer = { ...base, type: "image", assetId: imported.asset.id,
         geometry: { ...base.geometry, y: source.y + (source.height - height) / 2, width, height },
         crop: { x: 0, y: 0, width: 1, height: 1 }, style: { opacity: 1 },
-        role: deriveRole(source.name, "image"),
+        role,
       };
     }
     document.layers.push(layer);
